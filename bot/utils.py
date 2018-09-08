@@ -88,7 +88,7 @@ def search_youtube(term):
     elements = tree.xpath("//a[contains(@class, 'yt-uix-tile-link')]")
     results = []
     for e in elements:
-        if "/watch" in e.get('href'):
+        if  e.get('href').startswith("/watch"):
             results.append('https://www.youtube.com' + e.get('href'))
     return results
 
@@ -126,6 +126,18 @@ def get_missing_from_config(config, params):
             if not config.has_option(section, option):
                 missing.append((section, option))
     return missing
+
+
+def is_member_deafened(member):
+    """
+    Returns if a member is deafened, either by themselves or the server.
+
+    :param member: The member to check for
+    :type member: discord.Member
+    :return: Whether or not the member is deafened.
+    :rtype: bool
+    """
+    return member.voice.self_deaf or member.voice.deaf
 
 
 def safe_print(text, end="\n", flush=True):

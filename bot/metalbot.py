@@ -69,7 +69,8 @@ class MetalBot(discord.Client):
 
     async def join_voice_channel(self, channel):
         """
-        Makes the bot join a given voice Channel, and makes sure that OPUS is loaded before doing so. If the bot is already in a voice channel it is moved to the one given.
+        Makes the bot join a given voice Channel, and makes sure that OPUS is loaded before doing so. If the bot is
+        already in a voice channel it is moved to the one given.
 
         :param channel: The Channel the bot should join
         :type channel: discord.Channel
@@ -168,7 +169,7 @@ class MetalBot(discord.Client):
 
         listener_count = 0
         for member in voice.channel.voice_members:
-            if member == self.user or member.voice.self_deaf or member.voice.deaf:
+            if member == self.user or utils.is_member_deafened(member):
                 continue
             listener_count += 1
 
@@ -357,8 +358,9 @@ class MetalBot(discord.Client):
             video = element['pafy']
             utils.safe_print(("processing " + str(video.title)))
             song = songfetcher.get_pafy_song(video)
-            if song is not None:
-                if 0 < song.length < self.config.getint("Preferences", "MaxSongLength"):
+            if song is not None and song.length > 0:
+                if self.config.getint("Preferences", "MaxSongLength") <= 0 or\
+                        song.length < self.config.getint("Preferences", "MaxSongLength"):
                     songs.append(song)
 
             if len(songs) >= self.config.getint("Preferences", "MaxPlaylistLength") > 0:
@@ -440,21 +442,21 @@ class MetalBot(discord.Client):
 
     async def change_volume(self, new_volume, original_msg):
         """
-        Changes the player's _volume.
+        Changes the player's volume.
 
-        :param new_volume: The new _volume for the player. Values should be in range 0-100.
+        :param new_volume: The new volume for the player. Values should be in range 0-100.
         :type new_volume: str
         :param original_msg: The message that caused this function to be called
         :type original_msg: discord.Message
         """
         try:
             volume = float(new_volume) / 100.0
-            if new_volume.startswith('+') or volume < 0:  # relative _volume
+            if new_volume.startswith('+') or volume < 0:  # relative volume
                 volume += self.player.volume
             if 0.0 < volume <= 1.0:
                 old_volume = self.player.volume * 100
                 self.player.volume = volume
-                await self.send_message(original_msg.channel, "Changed _volume from %.1f to %.1f" %
+                await self.send_message(original_msg.channel, "Changed volume from %.1f to %.1f" %
                                         (old_volume, volume * 100))
             else:
                 await self.send_error(original_msg.channel, "Volume %.1f out of range: 1-100" % (volume * 100))
@@ -559,6 +561,10 @@ class MetalBot(discord.Client):
                 await self.send_error(msg.channel, "Join **%s** to use this command" % bot_voice.channel.name)
                 return
 
+            if utils.is_member_deafened(msg.author):
+                await self.send_error(msg.channel, "You cannot skip songs.")
+                return
+
             await self.skip_song_democratic(msg.author, msg.server, msg.channel)
 
         elif command == "clear":
@@ -592,7 +598,6 @@ class MetalBot(discord.Client):
             await self.send_message(msg.channel, embed=self.get_now_playing_embed())
 
         elif lower_command == "shuffle":
-            await self.send_typing(msg.channel)
             self.player.shuffle_queue()
             await self.send_message(msg.channel, ":clubs: :diamonds: Queue shuffled! :spades: :hearts:")
 
@@ -604,6 +609,10 @@ class MetalBot(discord.Client):
 
             if msg.author.voice_channel is None:
                 await self.send_error(msg.channel, "Please join a voice channel to use this command.")
+                return
+
+            if utils.is_member_deafened(msg.author):
+                await self.send_error(msg.channel, "You cannot enqueue songs.")
                 return
 
             arg = command[len("play") + 1:]
